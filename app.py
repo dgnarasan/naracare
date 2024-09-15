@@ -1,42 +1,39 @@
 from flask import Flask, request, jsonify
 import joblib
 
+# Initialize the Flask app
 app = Flask(__name__)
 
-# Load the pre-trained models
-disease_model = joblib.load('model_disease.pkl')
-severity_model = joblib.load('model_severity.pkl')
-treatment_model = joblib.load('model_treatment.pkl')
+# Load the models and vectorizer
+model_disease = joblib.load('model_disease.pkl')
+model_severity = joblib.load('model_severity.pkl')
+model_treatment = joblib.load('model_treatment.pkl')
+vectorizer = joblib.load('symptom_vectorizer.pkl')
 
-# Sample symptoms encoder (you'll need to load your encoder similarly)
-encoder = joblib.load('mlb.pkl')
-
-@app.route('/')
-def home():
-    return jsonify({'message': 'Welcome to the NHealth API!'})
-
-@app.route('/predict_disease', methods=['POST'])
-def predict_disease():
-    try:
-        data = request.json
-        symptoms = data.get('symptoms', [])
-
-        # Encode the symptoms
-        encoded_symptoms = encoder.transform([symptoms])
-
-        # Predict the disease, severity, and treatment
-        disease_prediction = disease_model.predict(encoded_symptoms)
-        severity_prediction = severity_model.predict(encoded_symptoms)
-        treatment_prediction = treatment_model.predict(encoded_symptoms)
-
-        return jsonify({
-            'disease': disease_prediction[0],
-            'severity': severity_prediction[0],
-            'treatment': treatment_prediction[0]
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@app.route('/predict', methods=['POST'])
+def predict():
+    # Get the JSON data from the request
+    data = request.get_json()
+    
+    if 'symptoms' not in data:
+        return jsonify({"error": "Symptom data is required"}), 400
+    
+    symptoms = data['symptoms']
+    
+    # Transform the input symptoms into the vectorized form
+    symptoms_vectorized = vectorizer.transform([symptoms])
+    
+    # Make predictions using the loaded models
+    predicted_disease = model_disease.predict(symptoms_vectorized)[0]
+    predicted_severity = model_severity.predict(symptoms_vectorized)[0]
+    predicted_treatment = model_treatment.predict(symptoms_vectorized)[0]
+    
+    # Return the predictions as a JSON response
+    return jsonify({
+        'disease': predicted_disease,
+        'severity': predicted_severity,
+        'treatment': predicted_treatment
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
